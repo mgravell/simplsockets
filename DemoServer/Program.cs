@@ -121,6 +121,8 @@ namespace DemoServer
 
         internal static unsafe void Reverse(Span<byte> span)
         {
+            // yes, I know this only works for ASCII (multi-byte code-points,
+            // and multi-codepoint grapheme clusters)
             fixed (byte* spanPtr = &MemoryMarshal.GetReference(span))
             {
                 byte* from = spanPtr, to = spanPtr + span.Length;
