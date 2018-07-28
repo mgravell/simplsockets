@@ -31,6 +31,7 @@ namespace SimplPipelines
             }
             return count;
         }
+
         private class Client : SimplPipeline
         {
             public Task Run(CancellationToken cancellationToken) => StartReceiveLooop(cancellationToken);
@@ -110,8 +111,11 @@ namespace SimplPipelines
         public void Dispose()
         {
             _disposed = true;
+            foreach(var client in _clients)
+            {
+                client.Key.Dispose();
+            }
             _clients.Clear();
-            throw new NotImplementedException();
         }
 
         private void AddClient(Client client)
