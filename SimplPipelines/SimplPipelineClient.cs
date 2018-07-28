@@ -17,22 +17,22 @@ namespace SimplPipelines
         public static async Task<SimplPipelineClient> ConnectAsync(EndPoint endpoint)
             => new SimplPipelineClient(await SocketConnection.ConnectAsync(endpoint));
 
-        private readonly Dictionary<int, TaskCompletionSource<Leased<byte>>> _awaitingResponses
-            = new Dictionary<int, TaskCompletionSource<Leased<byte>>>();
+        private readonly Dictionary<int, TaskCompletionSource<LeasedArray<byte>>> _awaitingResponses
+            = new Dictionary<int, TaskCompletionSource<LeasedArray<byte>>>();
 
         private int _nextMessageId;
         public ValueTask SendAsync(ReadOnlyMemory<byte> message)
             => WriteAsync(message, 0);
 
-        public Task<Leased<byte>> SendReciveAsync(ReadOnlyMemory<byte> message)
+        public Task<LeasedArray<byte>> SendReciveAsync(ReadOnlyMemory<byte> message)
         {
-            async Task<Leased<byte>> Awaited(ValueTask pendingWrite, Task<Leased<byte>> response)
+            async Task<LeasedArray<byte>> Awaited(ValueTask pendingWrite, Task<LeasedArray<byte>> response)
             {
                 await pendingWrite;
                 return await response;
             }
 
-            var tcs = new TaskCompletionSource<Leased<byte>>();
+            var tcs = new TaskCompletionSource<LeasedArray<byte>>();
             int messageId;
             lock (_awaitingResponses)
             {
@@ -46,15 +46,10 @@ namespace SimplPipelines
 
         protected override ValueTask OnReceiveAsync(ReadOnlySequence<byte> payload, int messageId)
         {
-            if (messageId == 0)
-            {
-                // unsolicited
-                MessageReceived?.Invoke(payload.CreateLease());
-            }
-            else
+            if (messageId != 0)
             {
                 // request/response
-                TaskCompletionSource<Leased<byte>> tcs;
+                TaskCompletionSource<LeasedArray<byte>> tcs;
                 lock (_awaitingResponses)
                 {
                     if (_awaitingResponses.TryGetValue(messageId, out tcs))
@@ -64,12 +59,18 @@ namespace SimplPipelines
                     else
                     {   // didn't find a twin, but... meh
                         tcs = null;
+                        messageId = 0; // treat as MessageReceived
                     }
                 }
                 tcs?.TrySetResult(payload.CreateLease());
             }
+            if (messageId == 0)
+            {
+                // unsolicited
+                MessageReceived?.Invoke(payload.CreateLease());
+            }
             return default;
         }
-        public event Action<Leased<byte>> MessageReceived;
+        public event Action<LeasedArray<byte>> MessageReceived;
     }
 }

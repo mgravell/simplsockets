@@ -110,7 +110,7 @@ namespace DemoServer
     }
     class ReverseServer : SimplPipelineServer
     {
-        protected override ValueTask<ReadOnlyMemory<byte>> OnReceiveForReplyAsync(Leased<byte> message)
+        protected override ValueTask<ReadOnlyMemory<byte>> OnReceiveForReplyAsync(LeasedArray<byte> message)
         {
             // since the "message" outlives the response write,
             // we can just overwrite the existing value, yay!

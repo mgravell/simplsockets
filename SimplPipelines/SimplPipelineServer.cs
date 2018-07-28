@@ -13,8 +13,8 @@ namespace SimplPipelines
         readonly ConcurrentDictionary<Client, Client> _clients = new ConcurrentDictionary<Client, Client>();
         public Task RunClient(IDuplexPipe pipe, CancellationToken cancellationToken = default)
             => new Client(pipe, this).Run(cancellationToken);
-        protected virtual ValueTask OnReceiveAsync(Leased<byte> message) => default;
-        protected virtual ValueTask<ReadOnlyMemory<byte>> OnReceiveForReplyAsync(Leased<byte> message)
+        protected virtual ValueTask OnReceiveAsync(LeasedArray<byte> message) => default;
+        protected virtual ValueTask<ReadOnlyMemory<byte>> OnReceiveForReplyAsync(LeasedArray<byte> message)
             => new ValueTask<ReadOnlyMemory<byte>>(Array.Empty<byte>());
 
         public async ValueTask<int> BroadcastAsync(ReadOnlyMemory<byte> message)
@@ -58,7 +58,7 @@ namespace SimplPipelines
                     }
                     catch { } // nom nom nom
                 }
-                void DisposeOnCompletion(ValueTask task, ref Leased<byte> message)
+                void DisposeOnCompletion(ValueTask task, ref LeasedArray<byte> message)
                 {
                     task.AsTask().ContinueWith((t, s) => (s as IDisposable)?.Dispose(), message);
                     message = null; // caller no longer owns it, logically; don't wipe on exit

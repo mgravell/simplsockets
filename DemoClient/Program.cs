@@ -40,16 +40,18 @@ namespace DemoClient
             {
                 await Console.Out.WriteLineAsync(
                     "Client connected; type 'q' to quit, anything else to send");
+                await Console.Out.WriteLineAsync(
+                    "(note the console can get jammed; this doesn't mean broadcasts aren't arriving)");
 
                 // subscribe to broadcasts
-                client.MessageReceived += async msg => await WriteLineAsync('*', msg);
+                client.MessageReceived += async msg => { if (!msg.IsEmpty) await WriteLineAsync('*', msg); };
 
                 string line;
                 while ((line = await Console.In.ReadLineAsync()) != null)
                 {
                     if (line == "q") break;
 
-                    Leased<byte> response;
+                    LeasedArray<byte> response;
                     using (var leased = line.Encode())
                     {
                         response = await client.SendReciveAsync(leased.Memory);
@@ -67,7 +69,8 @@ namespace DemoClient
                 client.Connect(new IPEndPoint(IPAddress.Loopback, 5000));
                 await Console.Out.WriteLineAsync(
                     "Client connected; type 'q' to quit, anything else to send");
-
+                await Console.Out.WriteLineAsync(
+                    "(note the console can get jammed; this doesn't mean broadcasts aren't arriving)");
                 // subscribe to broadcasts
                 client.MessageReceived += async (s, e) => await WriteLineAsync('*', e.ReceivedMessage.Message);
 
@@ -82,7 +85,7 @@ namespace DemoClient
                 }
             }
         }
-        static async ValueTask WriteLineAsync(char prefix, Leased<byte> encoded)
+        static async ValueTask WriteLineAsync(char prefix, LeasedArray<byte> encoded)
         {
             using (encoded) { await WriteLineAsync(prefix, encoded.Memory); }
         }
