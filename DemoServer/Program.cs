@@ -99,7 +99,7 @@ namespace DemoServer
             => Server = server ?? throw new ArgumentNullException(nameof(server));
 
         protected override Task OnClientConnectedAsync(in ClientConnection client)
-            => Server.RunClient(client.Transport);
+            => Server.RunClientAsync(client.Transport);
 
         public static SimplPipelineSocketServer For<T>() where T : SimplPipelineServer, new()
             => new SimplPipelineSocketServer(new T());

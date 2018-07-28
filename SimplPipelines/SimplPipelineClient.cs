@@ -11,7 +11,7 @@ namespace SimplPipelines
     public class SimplPipelineClient : SimplPipeline
     {
         public SimplPipelineClient(IDuplexPipe pipe) : base(pipe)
-            => StartReceiveLooop().ContinueWith( // fire and forget
+            => StartReceiveLoopAsync().ContinueWith( // fire and forget
                 t => GC.KeepAlive(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
 
         public static async Task<SimplPipelineClient> ConnectAsync(EndPoint endpoint)

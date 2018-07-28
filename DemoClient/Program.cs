@@ -1,6 +1,7 @@
 ﻿using SimplPipelines;
 using SimplSockets;
 using System;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -18,6 +19,8 @@ namespace DemoClient
             {
                 Console.WriteLine("1: run client via SimplPipelines");
                 Console.WriteLine("2: run client via SimplSockets");
+                Console.WriteLine("3: run benchmark via SimplPipelines");
+                Console.WriteLine("4: run benchmark via SimplSockets");
                 option = Console.ReadLine();
             }
             else
@@ -29,10 +32,70 @@ namespace DemoClient
             {
                 case "1": return RunViaPipelines();
                 case "2": return RunViaSockets();
+                case "3": return RunBenchmarkViaPipelines();
+                case "4": return RunBenchmarkViaSockets();
                 default: goto TryAgain;
 
             }
         }
+
+        private static async Task RunBenchmarkViaSockets()
+        {
+            using (var client = new SimplSocketClient(() => new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)))
+            {
+                var work = new SocketsWorkUnit(client);
+                await BenchmarkClient(work);
+            }
+        }
+
+        private static async Task RunBenchmarkViaPipelines()
+        {
+            using (var client = await SimplPipelineClient.ConnectAsync(
+    new IPEndPoint(IPAddress.Loopback, 5000)))
+            {
+                var work = new PipelinesWorkUnit(client);
+                await BenchmarkClient(work);
+            }
+        }
+        static readonly byte[] gibberish = new byte[512];
+        static async ValueTask BenchmarkClient(WorkUnit workUnit, int iterations = 10, int countPerIteration = 100)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                var watch = Stopwatch.StartNew();
+                await workUnit.Execute(gibberish, countPerIteration);
+                watch.Stop();
+                Console.WriteLine($"{countPerIteration}x{gibberish.Length}: {watch.ElapsedMilliseconds}ms");
+            }
+        }
+        abstract class WorkUnit
+        {
+            public abstract ValueTask Execute(byte[] payload, int count);
+        }
+        class SocketsWorkUnit : WorkUnit
+        {
+            public SimplSocketClient Client { get; }
+            public SocketsWorkUnit(SimplSocketClient client)
+                => Client = client;
+            public override ValueTask Execute(byte[] payload, int count)
+            {
+                for (int i = 0; i < count; i++)
+                    GC.KeepAlive(Client.SendReceive(payload));
+                return default;
+            }
+        }
+        class PipelinesWorkUnit : WorkUnit
+        {
+            public SimplPipelineClient Client { get; }
+            public PipelinesWorkUnit(SimplPipelineClient client)
+                => Client = client;
+            public override async ValueTask Execute(byte[] payload, int count)
+            {
+                for (int i = 0; i < count; i++)
+                    GC.KeepAlive(await Client.SendReciveAsync(payload));
+            }
+        }
+
         static async Task RunViaPipelines()
         {
             using (var client = await SimplPipelineClient.ConnectAsync(

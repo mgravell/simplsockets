@@ -129,7 +129,7 @@ namespace SimplPipelines
         }
 
 
-        protected async Task StartReceiveLooop(CancellationToken cancellationToken = default)
+        protected async Task StartReceiveLoopAsync(CancellationToken cancellationToken = default)
         {
             var reader = _pipe?.Input ?? throw new ObjectDisposedException(ToString());
             try

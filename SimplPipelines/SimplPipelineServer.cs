@@ -11,8 +11,8 @@ namespace SimplPipelines
     {
         public int ClientCount => _clients.Count;
         readonly ConcurrentDictionary<Client, Client> _clients = new ConcurrentDictionary<Client, Client>();
-        public Task RunClient(IDuplexPipe pipe, CancellationToken cancellationToken = default)
-            => new Client(pipe, this).Run(cancellationToken);
+        public Task RunClientAsync(IDuplexPipe pipe, CancellationToken cancellationToken = default)
+            => new Client(pipe, this).RunAsync(cancellationToken);
         protected virtual ValueTask OnReceiveAsync(LeasedArray<byte> message) => default;
         protected virtual ValueTask<ReadOnlyMemory<byte>> OnReceiveForReplyAsync(LeasedArray<byte> message)
             => new ValueTask<ReadOnlyMemory<byte>>(Array.Empty<byte>());
@@ -34,7 +34,8 @@ namespace SimplPipelines
 
         private class Client : SimplPipeline
         {
-            public Task Run(CancellationToken cancellationToken) => StartReceiveLooop(cancellationToken);
+            public Task RunAsync(CancellationToken cancellationToken)
+                => StartReceiveLoopAsync(cancellationToken);
 
             private readonly SimplPipelineServer _server;
             public Client(IDuplexPipe pipe, SimplPipelineServer server) : base(pipe)
