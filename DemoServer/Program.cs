@@ -110,7 +110,7 @@ namespace DemoServer
             if (disposing) Server.Dispose();
         }
     }
-    class ReverseServer : SimplPipelineServer
+    public class ReverseServer : SimplPipelineServer
     {
         protected override ValueTask<IMemoryOwner<byte>> OnReceiveForReplyAsync(IMemoryOwner<byte> message)
         {
