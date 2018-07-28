@@ -43,6 +43,29 @@ namespace SimplPipelines
             BinaryPrimitives.WriteInt32LittleEndian(span.Slice(4), messageId);
             writer.Advance(8);
         }
+
+        protected ValueTask WriteAsync(IMemoryOwner<byte> memory, int messageId)
+        {
+            async ValueTask Awaited(IMemoryOwner<byte> mmemory, ValueTask write)
+            {
+                using (mmemory)
+                {
+                    await write;
+                }
+            }
+            try
+            {
+                var result = WriteAsync(memory.Memory, messageId);
+                if (result.IsCompletedSuccessfully) return default;
+                var final = Awaited(memory, result);
+                memory = null; // prevent dispose
+                return final;
+            }
+            finally
+            {
+                using (memory) { }
+            }
+        }
         /// <summary>
         /// Note: it is assumed that the calling subclass has dealt with synchronization
         /// </summary>

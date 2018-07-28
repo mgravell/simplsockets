@@ -2,6 +2,7 @@
 using SimplPipelines;
 using SimplSockets;
 using System;
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
@@ -51,8 +52,9 @@ namespace DemoServer
                     int clientCount, len;
                     using (var leased = line.Encode())
                     {
-                        len = leased.Length;
-                        clientCount = await socket.Server.BroadcastAsync(leased.Memory);
+                        var memory = leased.Memory;
+                        len = memory.Length;
+                        clientCount = await socket.Server.BroadcastAsync(memory);
                     }
                     await Console.Out.WriteLineAsync(
                         $"Broadcast {len} bytes to {clientCount} clients");
@@ -110,13 +112,13 @@ namespace DemoServer
     }
     class ReverseServer : SimplPipelineServer
     {
-        protected override ValueTask<ReadOnlyMemory<byte>> OnReceiveForReplyAsync(LeasedArray<byte> message)
+        protected override ValueTask<IMemoryOwner<byte>> OnReceiveForReplyAsync(IMemoryOwner<byte> message)
         {
             // since the "message" outlives the response write,
             // we can just overwrite the existing value, yay!
             var memory = message.Memory;
             Reverse(memory.Span);
-            return new ValueTask<ReadOnlyMemory<byte>>(memory);
+            return new ValueTask<IMemoryOwner<byte>>(message);
         }
 
         internal static unsafe void Reverse(Span<byte> span)

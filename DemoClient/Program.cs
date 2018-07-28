@@ -1,6 +1,7 @@
 ﻿using SimplPipelines;
 using SimplSockets;
 using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -107,14 +108,14 @@ namespace DemoClient
                     "(note the console can get jammed; this doesn't mean broadcasts aren't arriving)");
 
                 // subscribe to broadcasts
-                client.MessageReceived += async msg => { if (!msg.IsEmpty) await WriteLineAsync('*', msg); };
+                client.MessageReceived += async msg => { if (!msg.Memory.IsEmpty) await WriteLineAsync('*', msg); };
 
                 string line;
                 while ((line = await Console.In.ReadLineAsync()) != null)
                 {
                     if (line == "q") break;
 
-                    LeasedArray<byte> response;
+                    IMemoryOwner<byte> response;
                     using (var leased = line.Encode())
                     {
                         response = await client.SendReciveAsync(leased.Memory);
@@ -148,7 +149,7 @@ namespace DemoClient
                 }
             }
         }
-        static async ValueTask WriteLineAsync(char prefix, LeasedArray<byte> encoded)
+        static async ValueTask WriteLineAsync(char prefix, IMemoryOwner<byte> encoded)
         {
             using (encoded) { await WriteLineAsync(prefix, encoded.Memory); }
         }

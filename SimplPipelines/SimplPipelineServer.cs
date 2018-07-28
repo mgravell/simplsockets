@@ -13,10 +13,21 @@ namespace SimplPipelines
         readonly ConcurrentDictionary<Client, Client> _clients = new ConcurrentDictionary<Client, Client>();
         public Task RunClientAsync(IDuplexPipe pipe, CancellationToken cancellationToken = default)
             => new Client(pipe, this).RunAsync(cancellationToken);
-        protected virtual ValueTask OnReceiveAsync(LeasedArray<byte> message) => default;
-        protected virtual ValueTask<ReadOnlyMemory<byte>> OnReceiveForReplyAsync(LeasedArray<byte> message)
-            => new ValueTask<ReadOnlyMemory<byte>>(Array.Empty<byte>());
-
+        protected virtual ValueTask OnReceiveAsync(IMemoryOwner<byte> message) => default;
+        protected virtual ValueTask<IMemoryOwner<byte>> OnReceiveForReplyAsync(IMemoryOwner<byte> message)
+        {
+            using (message)
+            {
+                return new ValueTask<IMemoryOwner<byte>>(MemoryOwner.Empty<byte>());
+            }
+        }
+        public async ValueTask<int> BroadcastAsync(IMemoryOwner<byte> message)
+        {
+            using (message)
+            {
+                return await BroadcastAsync(message.Memory);
+            }
+        }
         public async ValueTask<int> BroadcastAsync(ReadOnlyMemory<byte> message)
         {
             int count = 0;
@@ -46,12 +57,13 @@ namespace SimplPipelines
             protected sealed override ValueTask OnReceiveAsync(ReadOnlySequence<byte> payload, int messageId)
             {
                 // DF will hate me for this, but... it won't be awaited, so : don't create the task
-                async void AwaitedResponse(ValueTask<ReadOnlyMemory<byte>> ppendingResponse,
-                    int mmessageId, IDisposable disposable)
+                async void AwaitedResponse(
+                    ValueTask<IMemoryOwner<byte>> ppendingResponse,
+                    int mmessageId, IMemoryOwner<byte> rrequest)
                 {
                     try
                     {
-                        using (disposable)
+                        using (rrequest)
                         {
                             var response = await ppendingResponse;
                             await WriteAsync(response, mmessageId);
@@ -59,12 +71,12 @@ namespace SimplPipelines
                     }
                     catch { } // nom nom nom
                 }
-                void DisposeOnCompletion(ValueTask task, ref LeasedArray<byte> message)
+                void DisposeOnCompletion(ValueTask task, ref IMemoryOwner<byte> message)
                 {
-                    task.AsTask().ContinueWith((t, s) => (s as IDisposable)?.Dispose(), message);
+                    task.AsTask().ContinueWith((t, s) => ((IMemoryOwner<byte>)s)?.Dispose(), message);
                     message = null; // caller no longer owns it, logically; don't wipe on exit
                 }
-                var msg = payload.CreateLease();
+                var msg = payload.Lease();
                 try
                 {
                     if (messageId == 0)
