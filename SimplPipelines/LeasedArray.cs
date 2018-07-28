@@ -80,18 +80,20 @@ namespace SimplPipelines
         /// </summary>
         private sealed class ArrayPoolOwner<T> : IMemoryOwner<T>
         {
-            public int Length { get; }
+            private readonly int _length;
             private T[] _oversized;
 
             internal ArrayPoolOwner(T[] oversized, int length)
             {
-                Length = length;
-                _oversized = oversized;                
+                _length = length;
+                _oversized = oversized;
             }
-            private T[] GetArray() => Interlocked.CompareExchange(ref _oversized, null, null)
-                        ?? throw new ObjectDisposedException(ToString());
 
-            public Memory<T> Memory => new Memory<T>(GetArray(), 0, Length);
+            public Memory<T> Memory => new Memory<T>(GetArray(), 0, _length);
+
+            private T[] GetArray() =>
+                Interlocked.CompareExchange(ref _oversized, null, null)
+                ?? throw new ObjectDisposedException(ToString());
 
             public void Dispose()
             {
