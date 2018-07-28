@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Server.Kestrel.Transport;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
 
 namespace KestrelServer
@@ -16,9 +15,12 @@ namespace KestrelServer
         public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
             WebHost.CreateDefaultBuilder(args)
                 // .UseLibuv()
+                // ^^^ use a different network stack
                 .UseKestrel(options =>
                 {
-                    options.ApplicationSchedulingMode = SchedulingMode.Inline;
+                    // options.ApplicationSchedulingMode = SchedulingMode.Inline;
+                    // ^^^ avoid dispatch on incoming payloads (use the IO thread)
+
                     // HTTP 5001
                     options.ListenLocalhost(5001);
 
