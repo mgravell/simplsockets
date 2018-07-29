@@ -692,20 +692,28 @@ public async Task<long> c2_s2()
 
 Note that we're performing multiple operations (`Ops`) per run here, so we're not just measing overheads like connect. Other than that, we'll just let `BenchmarkDotNet` do the hard work. We run our tests, and we get (after some time; benchmarking isn't always fast, although you can make suggestions on the iterations etc to speed it up if you want):
 
- Method | Runtime |     Mean |     Error |    StdDev |  Gen 0 |  Gen 1 | Allocated |
-------- |-------- |---------:|----------:|----------:|-------:|-------:|----------:|
-  c1_s1 |     Clr |       NA |        NA |        NA |    N/A |    N/A |       N/A |
-  c2_s2 |     Clr | 45.99us | 0.4275us | 0.2544us | 0.3636 | 0.0909 |    1805B |
-  c1_s1 |    Core |       NA |        NA |        NA |    N/A |    N/A |       N/A |
-  c2_s2 |    Core | 29.87us | 0.2294us | 0.1518us | 0.1250 |      - |       2B |
+ Method | Runtime |     Mean |     Error |    StdDev |  Gen 0 |  Gen 1 |
+------- |-------- |---------:|----------:|----------:|-------:|-------:|
+  c1_s1 |     Clr |       NA |        NA |        NA |    N/A |    N/A |
+  c1_s2 |     Clr |       NA |        NA |        NA |    N/A |    N/A |
+  c2_s1 |     Clr |       NA |        NA |        NA |    N/A |    N/A |
+  c2_s2 |     Clr | 45.99us | 0.4275us | 0.2544us | 0.3636 | 0.0909 |
+  c1_s1 |    Core |       NA |        NA |        NA |    N/A |    N/A |
+  c1_s2 |    Core |       NA |        NA |        NA |    N/A |    N/A |
+  c2_s1 |    Core |       NA |        NA |        NA |    N/A |    N/A |
+  c2_s2 |    Core | 29.87us | 0.2294us | 0.1518us | 0.1250 |      - |
 
-(note: the memory allocation data is unreliable on "Core" for operations that involve multiple threads, due to limitations of the GC API)
+Now, you're probaly looking at that table and thinking "huh? most of the data is missing - how can interpret that?" - and: you wouldn't be wrong! It turns out that the `c1` (`SimplSocketClient`) and `s1` (`SimplSocketServer`) implementations are *simply unreliable*. Ultimately, it was **painfully hard** to write reliable socket code before pipelines, and it looks like the legacy implementation simply has bugs and race conditions that *don't show up in casual usage* (it works fine in the REPL client), but which manifest pretty quickly when `BenchmarkDotNet` runs it *aggressively*. Our "pipelines" implementation simply used the "obvious" thing, and *it works reliably first time*. All of the complex pieces that IO authors previously have now moved to the framework code, which enables programmers to focus on the interesting thing *they're trying to do* (rather than spending most of their time fighting with IO intrinsics), *and* benefit from a reliable well-tested implementation of the ugly IO code.
 
-TODO: Marc to talk about these numbers, when they are more reliable
+> A major advantage of moving to pipelines is getting rid of the gnarly IO bugs that *you didn't even know you had*.
 
-TODO: Marc to `merge pipelines` (into master) on my github fork, and update the link below
+I will be more than happy to update this table with updated numbers if `SimplSockets` can find the things that are stalling it.
+
+Of the numbers that we *do* have, we can see that it behaves *well* on `Clr` (.NET Framework) but works *much better* on `Core` (.NET Core). .NET Core 2.1 is frankly *amazing* (and 3.0 looks even better) - with *lots* of advantages. If you're serious about performance, migrating to .NET Core should definitely be on your roadmap.
 
 ## Summary
 
-This has been a long read, but I hope I've conveyed some useful practical advice and tips for working with pipelines in real systems, in a way that is directly translatable to your *own* requirements. If you want to play with the code in more depth, or see it in action, you can [see my fork here](https://github.com/mgravell/simplsockets/tree/pipelines/) **TODO update link**. Note: 
+This has been a long read, but I hope I've conveyed some useful practical advice and tips for working with pipelines in real systems, in a way that is directly translatable to your *own* requirements. If you want to play with the code in more depth, or see it in action, you can [see my fork here](https://github.com/mgravell/simplsockets/).
+
+Enjoy!
 

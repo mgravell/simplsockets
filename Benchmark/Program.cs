@@ -79,7 +79,7 @@ namespace Benchmark
             }
             return AssertResult(x);
         }
-        // [Benchmark(OperationsPerInvoke = Ops)]
+        [Benchmark(OperationsPerInvoke = Ops)]
         public long c1_s2()
         {
             long x = 0;
@@ -94,7 +94,7 @@ namespace Benchmark
             }
             return AssertResult(x);
         }
-        // [Benchmark(OperationsPerInvoke = Ops)]
+        [Benchmark(OperationsPerInvoke = Ops)]
         public async Task<long> c2_s1()
         {
             long x = 0;
