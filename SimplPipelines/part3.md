@@ -87,7 +87,12 @@ private sealed class ArrayPoolOwner<T> : IMemoryOwner<T>
 
 The key point here is in `Dispose()`, where it swaps out the array field (using `Interlocked.Exchange`), and puts the array back into the pool. Once we've done this, subsequent calls to `.Memory` will fail, and calls to `Dispose()` will do nothing.
 
-An imporant thing to note about the array-pool is that the arrays you get are often *oversized* (so that it can give you a larger array if it doesn't have one in exactly your size, but it has a larger one ready to go). This means we need to track the *expected* length (`_length`), and use that when constructing `.Memory`. As a side note, I wonder whether the above concept might be a worthy addition inside the framework itself, for usage directly from `ArrayPool<T>` - i.e. a method like `IMemoryOwner<T> RentOwned(int length)` alongside `T[] Rent(int minimumLength)`.
+Some important things to know about the array pool:
+
+1. is that the arrays you get are often *oversized* (so that it can give you a larger array if it doesn't have one in exactly your size, but it has a larger one ready to go). This means we need to track the *expected* length (`_length`), and use that when constructing `.Memory`.
+2. the array *is not zeroed upon fetch* - it can contain garbage. In our case, this isn't a problem because (below) we are *immediately* going to overwrite it with the data we want to represent, so the external caller will never see this, but *in the general case*, you might want to consider a: should I zero the contents on behalf of the receiver before giving it to them?, and b: is my data sensitive such that I don't want to accidentally leak it into the pool? (there is an existing "zero when *returning* to the pool" option in the array-pool, for this reason)
+
+As a side note, I wonder whether the above concept might be a worthy addition inside the framework itself, for usage directly from `ArrayPool<T>` - i.e. a method like `IMemoryOwner<T> RentOwned(int length)` alongside `T[] Rent(int minimumLength)` - perhaps with the additions of flags for "zero upon fetch" and "zero upon return".
 
 The idea here is that passing an `IMemoryOwner<T>` expresses a transfer of ownership, so a typical usage might be:
 
@@ -338,7 +343,7 @@ protected abstract ValueTask OnReceiveAsync(
 
 Note: since we are *bound* to have an `async` delay at some point (probably immediately), we might as well just jump straight to an "obvoious" `async` implementation - we'll gain nothing from trying to be clever here. Key points to observe:
 
-- we get data from the pipe (note that we *might* want to also consider `TryRead` here, but only if we are making progress - otherwise we couold find ourselves in a hot loop)
+- we get data from the pipe (note that we *might* want to also consider `TryRead` here, but only if we are making progress - otherwise we could find ourselves in a hot loop)
 - read (`TryParseFrame`) and process (`OnReceiveAsync`) as many frames as we can
 - advance the reader to report our progress, noting that `TryParseFrame` will have updated `buffer.Start`, and since we're actively reading as many frames as we can, it is true to say that we've "inspected" to `buffer.End`
 - keep in mind that the pipelines code is dealing with all the back-buffer concerns re data that we haven't consumed yet (usually a significant amount of code repeated in lots of libraries)
