@@ -443,7 +443,7 @@ protected override ValueTask OnReceiveAsync(
 }
 ```
 
-This code has two paths; it can be the request/response scenario, or ot can be an out-of-band response message with no request. So; if we *have* a non-zero `messageId`, we check (synchronized) in our `_awaitingResponses` dictionary to see if we have a message awaiting completion. If we do, we use `TrySetResult` to complete the task (after exiting the `lock`), giving it a lease with the data from the message. Otherwise, we check whether the `MessageReceived` event is subscribed, and invoke that similarly. In both cases, the use of `?.` here means that we don't populate a leased array if nobody is listening. It will be the receiver's job to ensure the lease is disposed, as only they can know the lifetime.
+This code has two paths; it can be the request/response scenario, or it can be an out-of-band response message with no request. So; if we *have* a non-zero `messageId`, we check (synchronized) in our `_awaitingResponses` dictionary to see if we have a message awaiting completion. If we do, we use `TrySetResult` to complete the task (after exiting the `lock`), giving it a lease with the data from the message. Otherwise, we check whether the `MessageReceived` event is subscribed, and invoke that similarly. In both cases, the use of `?.` here means that we don't populate a leased array if nobody is listening. It will be the receiver's job to ensure the lease is disposed, as only they can know the lifetime.
 
 ## Service, please
 
