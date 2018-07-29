@@ -591,6 +591,8 @@ class SimplPipelineSocketServer : SocketServer
 
 The key line in here is our `OnClientConnectedAsync` method, which is how we accept new connections, simply by passing down the `client.Transport` (an `IDuplexPipe`). Hosting in Kestrel works very similarly, except you subclass `ConnectionHandler` instead of `SocketServer`, and `override` the `OnConnectedAsync` method - but there are a few more steps involved in plumbing everything together. Kestrel, however, has advantages such as supporting exotic socket APIs.
 
+So, let's whack together a console that interacts with the server:
+
 ```c#
 using (var socket =
     SimplPipelineSocketServer.For<ReverseServer>())
