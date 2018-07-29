@@ -150,8 +150,8 @@ For the latter, specifically: the pipe **is the queue**; meaning: we *already ha
 We also need to consider the *shape* of this API, to allow a server or client to add a messagee
 
 - we don't necessarily want to be synchronous; we don't need to block while waiting to access to write to the pipe, or while waiting for a response from the server
-- for the *input* exchange-type, this is less of an issue; the caller is in change there - it is *their* memory, not ours
-- let's assume that write and read are decoupled - we don't want to worry about the response message here
+- we might want to expose alternate APIs for whether the caller is simply giving us memory to write (`ReadOnlyMember<byte>`), or *giving us owneship* of the data, for us to clean up when we've written it (`IMemoryOwner<byte>`)
+- let's assume that write and read are decoupled - we don't want to worry about the issues of response messages here
 
 So; putting that together, I quite like:
 
