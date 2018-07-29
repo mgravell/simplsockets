@@ -457,13 +457,13 @@ public abstract class SimplPipelineServer : IDisposable
     
     public int ClientCount => _clients.Count;
     public Task RunClientAsync(IDuplexPipe pipe,
-		CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
         => new Client(pipe, this).RunAsync(cancellationToken);
     
     private class Client : SimplPipeline
     {
         public Task RunAsync(CancellationToken cancellationToken)
-			=> StartReceiveLoopAsync(cancellationToken);
+            => StartReceiveLoopAsync(cancellationToken);
 
         private readonly SimplPipelineServer _server;
         public Client(IDuplexPipe pipe, SimplPipelineServer server)
