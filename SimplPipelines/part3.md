@@ -11,7 +11,7 @@ So, with your kind permimssion, I'd like to deviate from our previously advertis
 - `async`/`await` optimization in the context of libraries
 - practical real-world examples of writing to and reading from pipelines
 - how to connect pipelines client and server types to the network
-- performance comparisons from pipelines
+- performance comparisons from pipelines, and tips on measuring performance
 
 I'll be walking through *a lot* of code here, but I'll also be making the "real" code available for further exploration; this also includes some things I dodn't have time to cover here, such as how to host a pipelines server inside the Kestrel server.
 
@@ -640,9 +640,68 @@ But: there's only one way to find out. [As Eric Lippert puts it](https://ericlip
 
 Setting up a good race-track for code can be awkward, because we need to try to reproduce a *meaningful scenario*. And it is *amazingly* easy to write bad performnce tests. Rather than reinvent bad code, it is *hugely* adviseable to lean on tools like like [`BenchmarkDotNet`](https://benchmarkdotnet.org/). If you are *even remotely* performance minded, and you haven't used `BenchmarkDotNet`: sorry, but *you're doing it wrong*.
 
+There are 4 combinations we can check here:
 
+- `SimplSocketClient` against `SimplSocketServer`
+- `SimplSocketClient` against `SimplPipelineServer`
+- `SimplPipelineClient` against `SimplSocketServer`
+- `SimplPipelineClient` against `SimplPipelineServer`
 
-TODO: Marc to add benchmark data, when I can get `SimplSockets` to work... it currently works fine in the RERPL but blows up during the stress test; `SimplPipelines` is fine :)
+I won't list all of these, but for these tests I'll use a `[GlobalSetup]` method (a `BenchmarkDotNet` concept) to spin up both servers (on different ports), then we can test clients against each. Here's our "`SimplSocketClient` against `SimplSocketServer`" test (remembering that `SimplSocketClient` is synchronous):
+
+```c#
+[Benchmark(OperationsPerInvoke = Ops)]
+public long c1_s1()
+{
+    long x = 0;
+    using (var client = new SimplSocketClient(CreateSocket))
+    {
+        client.Connect(s1);
+        for (int i = 0; i < Ops; i++)
+        {
+            var response = client.SendReceive(_data);
+            x += response.Length;
+        }
+    }
+    return AssertResult(x);
+}
+```
+
+and here's our "`SimplPipelineClient` against `SimplPipelineServer`" test (using a `Task` this time, as `SimplPipelineClient` uses an `async` API):
+
+```c#
+[Benchmark(OperationsPerInvoke = Ops)]
+public async Task<long> c2_s2()
+{
+    long x = 0;
+    using (var client =
+        await SimplPipelineClient.ConnectAsync(s2))
+    {
+        for (int i = 0; i < Ops; i++)
+        {
+            using (var response =
+                await client.SendReceiveAsync(_data))
+            {
+                x += response.Memory.Length;
+            }
+        }
+    }
+    return AssertResult(x);
+}
+```
+
+Note that we're performing multiple operations (`Ops`) per run here, so we're not just measing overheads like connect. Other than that, we'll just let `BenchmarkDotNet` do the hard work. We run our tests, and we get (after some time; benchmarking isn't always fast, although you can make suggestions on the iterations etc to speed it up if you want):
+
+ Method | Runtime |     Mean |     Error |    StdDev |  Gen 0 |  Gen 1 | Allocated |
+------- |-------- |---------:|----------:|----------:|-------:|-------:|----------:|
+  c1_s1 |     Clr |       NA |        NA |        NA |    N/A |    N/A |       N/A |
+  c2_s2 |     Clr | 45.99us | 0.4275us | 0.2544us | 0.3636 | 0.0909 |    1805B |
+  c1_s1 |    Core |       NA |        NA |        NA |    N/A |    N/A |       N/A |
+  c2_s2 |    Core | 29.87us | 0.2294us | 0.1518us | 0.1250 |      - |       2B |
+
+(note: the memory allocation data is unreliable on "Core" for operations that involve multiple threads, due to limitations of the GC API)
+
+TODO: Marc to talk about these numbers, when they are more reliable
 
 TODO: Marc to `merge pipelines` (into master) on my github fork, and update the link below
 

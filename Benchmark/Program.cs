@@ -18,28 +18,30 @@ namespace Benchmark
             Console.WriteLine(summary);
         }
     }
-    [ClrJob, CoreJob, WarmupCount(2), MemoryDiagnoser]
+    // note: MemoryDiagnoser here won't work well on CoreJob, due to
+    // the GC not making total memory usage available
+    [ClrJob, CoreJob, MemoryDiagnoser, WarmupCount(2), IterationCount(10)]
     public class Benchmarks
     {
         static readonly EndPoint
-            v1 = new IPEndPoint(IPAddress.Loopback, 6000),
-            v2 = new IPEndPoint(IPAddress.Loopback, 6001);
+            s1 = new IPEndPoint(IPAddress.Loopback, 6000),
+            s2 = new IPEndPoint(IPAddress.Loopback, 6001);
 
         byte[] _data;
         IDisposable _socketServer, _pipeServer;
         [GlobalSetup]
         public void Setup()
         {
-            var socketServer = new SimplSocketServer(CreateV1Socket);
-            socketServer.Listen(v1);
+            var socketServer = new SimplSocketServer(CreateSocket);
+            socketServer.Listen(s1);
             _socketServer = socketServer;
             var pipeServer = SimplPipelineSocketServer.For<ReverseServer>();
-            pipeServer.Listen(v2);
+            pipeServer.Listen(s2);
             _pipeServer = pipeServer;
 
             _data = new byte[1024];
         }
-        static Socket CreateV1Socket() => new Socket(
+        static readonly Func<Socket> CreateSocket = () => new Socket(
             AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
             { NoDelay = true };
         void Dispose<T>(ref T field) where T : class, IDisposable
@@ -52,22 +54,51 @@ namespace Benchmark
             Dispose(ref _socketServer);
             Dispose(ref _pipeServer);
         }
-        // note in the below: GC.KeepAlive is just an opaque method
-        // that ensures we don't not do "the thing"; we aren't doing
-        // anything magic with GC here!
-
+        
         const int Ops = 1000;
-        void AssertResult(long result)
+        long AssertResult(long result)
         {
             int expected = _data.Length * Ops;
             if (result != expected) throw new InvalidOperationException(
                 $"Data error: expected {expected}, got {result}");
+            return result;
         }
+        
         [Benchmark(OperationsPerInvoke = Ops)]
-        public async Task v2_v2()
+        public long c1_s1()
         {
             long x = 0;
-            using (var client = await SimplPipelineClient.ConnectAsync(v2))
+            using (var client = new SimplSocketClient(CreateSocket))
+            {
+                client.Connect(s1);
+                for (int i = 0; i < Ops; i++)
+                {
+                    var response = client.SendReceive(_data);
+                    x += response.Length;
+                }
+            }
+            return AssertResult(x);
+        }
+        // [Benchmark(OperationsPerInvoke = Ops)]
+        public long c1_s2()
+        {
+            long x = 0;
+            using (var client = new SimplSocketClient(CreateSocket))
+            {
+                client.Connect(s2);
+                for (int i = 0; i < Ops; i++)
+                {
+                    var response = client.SendReceive(_data);
+                    x += response.Length;
+                }
+            }
+            return AssertResult(x);
+        }
+        // [Benchmark(OperationsPerInvoke = Ops)]
+        public async Task<long> c2_s1()
+        {
+            long x = 0;
+            using (var client = await SimplPipelineClient.ConnectAsync(s1))
             {
                 for (int i = 0; i < Ops; i++)
                 {
@@ -77,21 +108,23 @@ namespace Benchmark
                     }
                 }
             }
-            AssertResult(x);
+            return AssertResult(x);
         }
         [Benchmark(OperationsPerInvoke = Ops)]
-        public void v1_v1()
+        public async Task<long> c2_s2()
         {
             long x = 0;
-            using (var client = new SimplSocketClient(CreateV1Socket))
+            using (var client = await SimplPipelineClient.ConnectAsync(s2))
             {
                 for (int i = 0; i < Ops; i++)
                 {
-                    var response = client.SendReceive(_data);
-                    x += response.Length;
+                    using (var response = await client.SendReceiveAsync(_data))
+                    {
+                        x += response.Memory.Length;
+                    }
                 }
             }
-            AssertResult(x);
+            return AssertResult(x);
         }
     }
 }
