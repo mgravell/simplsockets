@@ -24,14 +24,14 @@ namespace SimplPipelines
         public ValueTask SendAsync(ReadOnlyMemory<byte> message)
             => WriteAsync(message, 0);
 
-        public async Task<IMemoryOwner<byte>> SendReciveAsync(IMemoryOwner<byte> message)
+        public async Task<IMemoryOwner<byte>> SendReceiveAsync(IMemoryOwner<byte> message)
         {
             using (message)
             {
-                return await SendReciveAsync(message.Memory);
+                return await SendReceiveAsync(message.Memory);
             }
         }
-        public Task<IMemoryOwner<byte>> SendReciveAsync(ReadOnlyMemory<byte> message)
+        public Task<IMemoryOwner<byte>> SendReceiveAsync(ReadOnlyMemory<byte> message)
         {
             async Task<IMemoryOwner<byte>> Awaited(ValueTask pendingWrite, Task<IMemoryOwner<byte>> response)
             {

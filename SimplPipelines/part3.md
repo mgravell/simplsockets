@@ -89,7 +89,7 @@ The key point here is in `Dispose()`, where it swaps out the array field (using 
 
 Some important things to know about the array pool:
 
-1. is that the arrays you get are often *oversized* (so that it can give you a larger array if it doesn't have one in exactly your size, but it has a larger one ready to go). This means we need to track the *expected* length (`_length`), and use that when constructing `.Memory`.
+1. the arrays it gives you are often *oversized* (so that it can give you a larger array if it doesn't have one in exactly your size, but it has a larger one ready to go). This means we need to track the *expected* length (`_length`), and use that when constructing `.Memory`.
 2. the array *is not zeroed upon fetch* - it can contain garbage. In our case, this isn't a problem because (below) we are *immediately* going to overwrite it with the data we want to represent, so the external caller will never see this, but *in the general case*, you might want to consider a: should I zero the contents on behalf of the receiver before giving it to them?, and b: is my data sensitive such that I don't want to accidentally leak it into the pool? (there is an existing "zero when *returning* to the pool" option in the array-pool, for this reason)
 
 As a side note, I wonder whether the above concept might be a worthy addition inside the framework itself, for usage directly from `ArrayPool<T>` - i.e. a method like `IMemoryOwner<T> RentOwned(int length)` alongside `T[] Rent(int minimumLength)` - perhaps with the additions of flags for "zero upon fetch" and "zero upon return".
@@ -99,10 +99,12 @@ The idea here is that passing an `IMemoryOwner<T>` expresses a transfer of owner
 ```c#
 void DoSomethingWith(IMemoryOwner<byte> data)
 {
-    using(data)
+    using (data)
     {
+        // ... other things here ...
         DoTheThing(data.Memory);
     }
+    // ... more things here ...
 }
 ```
 
@@ -277,7 +279,7 @@ We have a `WriteAsync` method in the base class; now let's add a concrete client
 ```c#
 public class SimplPipelineClient : SimplPipeline
 {
-    public async Task<IMemoryOwner<byte>> SendReciveAsync(ReadOnlyMemory<byte> message)
+    public async Task<IMemoryOwner<byte>> SendReceiveAsync(ReadOnlyMemory<byte> message)
     {
         var tcs = new TaskCompletionSource<IMemoryOwner<byte>>();
         int messageId;
@@ -290,11 +292,11 @@ public class SimplPipelineClient : SimplPipeline
         await WriteAsync(message, messageId);
         return await tcs.Task;
     }
-    public async Task<IMemoryOwner<byte>> SendReciveAsync(IMemoryOwner<byte> message)
+    public async Task<IMemoryOwner<byte>> SendReceiveAsync(IMemoryOwner<byte> message)
     {
         using (message)
         {
-            return await SendReciveAsync(message.Memory);
+            return await SendReceiveAsync(message.Memory);
         }
     }
 }
@@ -541,7 +543,7 @@ using (var client = await SimplPipelineClient.ConnectAsync(
 
         using (var leased = line.Encode())
         {
-            var response = await client.SendReciveAsync(leased.Memory);
+            var response = await client.SendReceiveAsync(leased.Memory);
             await WriteLineAsync('<', response);
         }     
     }
@@ -627,6 +629,18 @@ using (var socket =
 This works much like the client, except any input other than `"q"` is *broadcast* to all the clients.
 
 ## Now race your horses
+
+We're not just doing this for fun! The key obective of things like pipelines and the array-pool is that it makes it **much** simpler to write IO code that makes efficient use of memory; reducing allocations (and *especially* reducing large object allocations) *signficantly* reduces garbage collection overhead, allowing our code to be much more scalable (useful for both servers, and high-throughput client scenarios). Our use of `async`/`await` makes it **much** simpler to make effective use of the CPU: instead of blocking for a while, we can make the thread available to do other *useful work* - increasing throughput, and once again: reducing memory usage (having lots of threads is *not* cheap - each thread has a quite significant stack space reserved for it).
+
+Note that this isn't entirely free; fetching arrays from the pool (and remembering to return them) *by itself* has some overhead - but the general expectation is that the cost of checking the pool is, *overall*, lower than the cost associated from constant allocations and collections. Similarly, `async`: the hope is that the increased scalability afforded by freeing up threads more-than-offsets the cost of the additional work required by the plumbing involved.
+
+But: there's only one way to find out. [As Eric Lippert puts it](https://ericlippert.com/2012/12/17/performance-rant/):
+
+> If you have two horses and you want to know which of the two is the faster then **race your horses**
+
+Setting up a good race-track for code can be awkward, because we need to try to reproduce a *meaningful scenario*. And it is *amazingly* easy to write bad performnce tests. Rather than reinvent bad code, it is *hugely* adviseable to lean on tools like like [`BenchmarkDotNet`](https://benchmarkdotnet.org/). If you are *even remotely* performance minded, and you haven't used `BenchmarkDotNet`: sorry, but *you're doing it wrong*.
+
+
 
 TODO: Marc to add benchmark data, when I can get `SimplSockets` to work... it currently works fine in the RERPL but blows up during the stress test; `SimplPipelines` is fine :)
 

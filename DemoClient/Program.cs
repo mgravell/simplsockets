@@ -93,7 +93,7 @@ namespace DemoClient
             public override async ValueTask Execute(byte[] payload, int count)
             {
                 for (int i = 0; i < count; i++)
-                    GC.KeepAlive(await Client.SendReciveAsync(payload));
+                    GC.KeepAlive(await Client.SendReceiveAsync(payload));
             }
         }
 
@@ -118,7 +118,7 @@ namespace DemoClient
                     IMemoryOwner<byte> response;
                     using (var leased = line.Encode())
                     {
-                        response = await client.SendReciveAsync(leased.Memory);
+                        response = await client.SendReceiveAsync(leased.Memory);
                     }
                     await WriteLineAsync('<', response);
                 }

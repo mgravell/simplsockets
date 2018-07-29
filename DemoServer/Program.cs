@@ -93,7 +93,7 @@ namespace DemoServer
         }
     }
 
-    class SimplPipelineSocketServer : SocketServer
+    public class SimplPipelineSocketServer : SocketServer
     {
         public SimplPipelineServer Server { get; }
 

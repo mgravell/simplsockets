@@ -19,6 +19,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoServer", "DemoServer\De
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KestrelServer", "KestrelServer\KestrelServer.csproj", "{AEE35403-82DD-4F37-A4C1-119A01BEB078}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmark", "Benchmark\Benchmark.csproj", "{AA5BC121-ACF3-4D77-97B2-165B8374EFC4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +47,10 @@ Global
 		{AEE35403-82DD-4F37-A4C1-119A01BEB078}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AEE35403-82DD-4F37-A4C1-119A01BEB078}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AEE35403-82DD-4F37-A4C1-119A01BEB078}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AA5BC121-ACF3-4D77-97B2-165B8374EFC4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AA5BC121-ACF3-4D77-97B2-165B8374EFC4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AA5BC121-ACF3-4D77-97B2-165B8374EFC4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AA5BC121-ACF3-4D77-97B2-165B8374EFC4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
