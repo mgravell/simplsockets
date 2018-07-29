@@ -161,7 +161,7 @@ protected async ValueTask WriteAsync(
 {
     using (payload)
     {
-        await WriteAsync(payload.Memory);
+        await WriteAsync(payload.Memory, messageId);
     }
 }
 protected ValueTask WriteAsync(
