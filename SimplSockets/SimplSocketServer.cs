@@ -92,6 +92,7 @@ namespace SimplSockets
             _socketAsyncEventArgsSendPool = new Pool<SocketAsyncEventArgs>(PREDICTED_CONNECTION_COUNT, () =>
             {
                 var poolItem = new SocketAsyncEventArgs();
+                poolItem.SetBuffer(new byte[messageBufferSize], 0, messageBufferSize);
                 poolItem.Completed += OperationCallback;
                 return poolItem;
             });
@@ -178,8 +179,8 @@ namespace SimplSockets
 
             // Get the current thread ID
             int threadId = Thread.CurrentThread.ManagedThreadId;
-
-            var messageWithControlBytes = ProtocolHelper.AppendControlBytesToMessage(message, threadId);
+            int size;
+            //var messageWithControlBytes = ProtocolHelper.AppendControlBytesToMessage(message, threadId);
 
             List<Socket> bustedClients = null;
 
@@ -190,19 +191,24 @@ namespace SimplSockets
                 foreach (var client in _currentlyConnectedClients)
                 {
                     var socketAsyncEventArgs = _socketAsyncEventArgsSendPool.Pop();
-                    socketAsyncEventArgs.SetBuffer(messageWithControlBytes, 0, messageWithControlBytes.Length);
 
-                    // Post send on the listening socket
-                    if (!TryUnsafeSocketOperation(client.Socket, SocketAsyncOperation.Send, socketAsyncEventArgs))
+                    if ((size = ProtocolHelper.AppendControlBytesToMessage(message, threadId, socketAsyncEventArgs.Buffer)) > 0)
                     {
-                        // Mark for disconnection
-                        if (bustedClients == null)
+                        socketAsyncEventArgs.SetBuffer(0, size);
+                        // Post send on the listening socket
+                        if (!TryUnsafeSocketOperation(client.Socket, SocketAsyncOperation.Send, socketAsyncEventArgs))
                         {
-                            bustedClients = new List<Socket>();
-                        }
+                            // Mark for disconnection
+                            if (bustedClients == null)
+                            {
+                                bustedClients = new List<Socket>();
+                            }
 
-                        bustedClients.Add(client.Socket);
+                            bustedClients.Add(client.Socket);
+                        }
                     }
+                    else
+                        _socketAsyncEventArgsSendPool.Push(socketAsyncEventArgs);
                 }
             }
             finally
@@ -236,13 +242,17 @@ namespace SimplSockets
                 throw new ArgumentException("contains corrupted data", "receivedMessageState");
             }
 
-            var messageWithControlBytes = ProtocolHelper.AppendControlBytesToMessage(message, receivedMessage.ThreadId);
+            int size = 0;
 
             var socketAsyncEventArgs = _socketAsyncEventArgsSendPool.Pop();
-            socketAsyncEventArgs.SetBuffer(messageWithControlBytes, 0, messageWithControlBytes.Length);
-
-            // Do the send to the appropriate client
-            TryUnsafeSocketOperation(receivedMessage.Socket, SocketAsyncOperation.Send, socketAsyncEventArgs);
+            if ((size = ProtocolHelper.AppendControlBytesToMessage(message, receivedMessage.ThreadId, socketAsyncEventArgs.Buffer)) > 0)
+            {
+                socketAsyncEventArgs.SetBuffer(0, size);
+                // Do the send to the appropriate client
+                TryUnsafeSocketOperation(receivedMessage.Socket, SocketAsyncOperation.Send, socketAsyncEventArgs);
+            }
+            else
+                _socketAsyncEventArgsSendPool.Push(socketAsyncEventArgs);            
         }
 
         /// <summary>

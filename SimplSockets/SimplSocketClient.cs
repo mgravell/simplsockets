@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.Caching;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -108,6 +107,7 @@ namespace SimplSockets
             _socketAsyncEventArgsSendPool = new Pool<SocketAsyncEventArgs>(PREDICTED_THREAD_COUNT, () =>
             {
                 var poolItem = new SocketAsyncEventArgs();
+                poolItem.SetBuffer(new byte[messageBufferSize], 0, messageBufferSize);
                 poolItem.Completed += OperationCallback;
                 return poolItem;
             });
@@ -207,12 +207,18 @@ namespace SimplSockets
 
             // Get the current thread ID
             int threadId = Thread.CurrentThread.ManagedThreadId;
-
-            var messageWithControlBytes = ProtocolHelper.AppendControlBytesToMessage(message, threadId);
+            int size;
+            
             var socketAsyncEventArgs = _socketAsyncEventArgsSendPool.Pop();
-            socketAsyncEventArgs.SetBuffer(messageWithControlBytes, 0, messageWithControlBytes.Length);
 
-            _sendBufferQueue.Enqueue(socketAsyncEventArgs);
+            if ((size = ProtocolHelper.AppendControlBytesToMessage(message, threadId, socketAsyncEventArgs.Buffer)) > 0)
+            {
+                socketAsyncEventArgs.SetBuffer(0, size);
+                _sendBufferQueue.Enqueue(socketAsyncEventArgs);
+            }
+            else
+                _socketAsyncEventArgsSendPool.Push(socketAsyncEventArgs);
+
         }
 
         /// <summary>
@@ -230,37 +236,45 @@ namespace SimplSockets
 
             // Get the current thread ID
             int threadId = Thread.CurrentThread.ManagedThreadId;
-
-            // Enroll in the multiplexer
-            var multiplexerData = EnrollMultiplexer(threadId);
-
-            var messageWithControlBytes = ProtocolHelper.AppendControlBytesToMessage(message, threadId);
-
+            int size;
             var socketAsyncEventArgs = _socketAsyncEventArgsSendPool.Pop();
-            socketAsyncEventArgs.SetBuffer(messageWithControlBytes, 0, messageWithControlBytes.Length);
 
-            // Prioritize sends that have receives to the front of the queue
-            _sendBufferQueue.EnqueueFront(socketAsyncEventArgs);
-
-            // Wait for our message to go ahead from the receive callback, or until the timeout is reached
-            if (!multiplexerData.ManualResetEvent.WaitOne(_communicationTimeout))
+            if ((size = ProtocolHelper.AppendControlBytesToMessage(message, threadId, socketAsyncEventArgs.Buffer)) > 0)
             {
-                HandleCommunicationError(_socket, new TimeoutException("The connection timed out before the response message was received"));
+                socketAsyncEventArgs.SetBuffer(0, size);
+
+                // Enroll in the multiplexer
+                var multiplexerData = EnrollMultiplexer(threadId);
+
+                // Prioritize sends that have receives to the front of the queue
+                _sendBufferQueue.EnqueueFront(socketAsyncEventArgs);
+
+                // Wait for our message to go ahead from the receive callback, or until the timeout is reached
+                if (!multiplexerData.ManualResetEvent.WaitOne(_communicationTimeout))
+                {
+                    HandleCommunicationError(_socket, new TimeoutException("The connection timed out before the response message was received"));
+
+                    // Unenroll from the multiplexer
+                    UnenrollMultiplexer(threadId);
+
+                    // No signal
+                    return null;
+                }
+
+                // Now get the command string
+                var result = multiplexerData.Message;
 
                 // Unenroll from the multiplexer
                 UnenrollMultiplexer(threadId);
 
-                // No signal
+                return result;
+            }
+            else
+            {
+                _socketAsyncEventArgsSendPool.Push(socketAsyncEventArgs);
                 return null;
             }
-
-            // Now get the command string
-            var result = multiplexerData.Message;
-
-            // Unenroll from the multiplexer
-            UnenrollMultiplexer(threadId);
-
-            return result;
+                
         }
 
         /// <summary>
