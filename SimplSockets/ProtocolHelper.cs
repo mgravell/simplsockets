@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace SimplSockets
 {
@@ -20,6 +17,21 @@ namespace SimplSockets
             // Set the control bytes on the message
             SetControlBytes(messageWithControlBytes, message.Length, threadId);
             return messageWithControlBytes;
+        }
+
+        public static int AppendControlBytesToMessage(byte[] message, int threadId, byte[] messageWithControlBytes)
+        {
+            int iResult = -1;
+            // Copy control bytes if enought room
+            if (messageWithControlBytes.Length >= ControlBytesPlaceholder.Length + message.Length)
+            {
+                Buffer.BlockCopy(message, 0, messageWithControlBytes, ControlBytesPlaceholder.Length, message.Length);
+                // Set the control bytes on the message
+                SetControlBytes(messageWithControlBytes, message.Length, threadId);
+                iResult = ControlBytesPlaceholder.Length + message.Length;
+            }
+
+            return iResult;
         }
 
         public static void SetControlBytes(byte[] buffer, int length, int threadId)
